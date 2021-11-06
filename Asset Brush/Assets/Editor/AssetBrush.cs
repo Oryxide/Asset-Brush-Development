@@ -10,14 +10,12 @@ public class AssetBrush : EditorWindow
 
     enum States { Idle, Painting, Erasing };
 
-    //Debug.Log(Face.Left);
-
-
     // States
     States State;
     bool BrushEnabled = false;
 
     // VARIABLES
+    int LayerMask = ~(1 << 2);
     GameObject Brush;
     GameObject BrushAsset;
     Vector2 MousePosition2D;
@@ -28,6 +26,8 @@ public class AssetBrush : EditorWindow
     List<GameObject> ObjectList = new List<GameObject>();
     private Camera EditorCamera = UnityEditor.SceneView.lastActiveSceneView.camera;
 
+    Dictionary <int, int> Layers = new Dictionary<int, int>();
+    List<GameObject> SpawnedObjects = new List<GameObject>();
 
     // USER SETTINGS
     float MinimumObjectRotation = 0;
@@ -37,7 +37,7 @@ public class AssetBrush : EditorWindow
     Transform SelectedParent;
     float BrushSize = 3;
     float PreviousBrushSize = 3;
-    float Padding = 0;
+    float Padding = 1;
 
     [MenuItem("Window/Asset Brush")]
     public static void ShowWindow()
@@ -50,6 +50,33 @@ public class AssetBrush : EditorWindow
         EditorGUILayout.TextArea("", GUI.skin.horizontalSlider);
         EditorGUILayout.Space();
         EditorGUILayout.Space();
+    }
+
+    void SetLayers()
+    {
+        foreach (GameObject Object in SpawnedObjects)
+        {   
+            if (Object) 
+            {
+                if (!Layers.ContainsKey(Object.GetInstanceID()))
+                {
+                    Layers.Add(Object.GetInstanceID(), Object.layer);
+                }
+                Object.layer = 2;
+            }
+        }
+    }
+
+    void ResetLayers()
+    {
+        foreach (GameObject Object in SpawnedObjects)
+        {
+            if (Object && Layers.ContainsKey(Object.GetInstanceID())) 
+            {
+                Object.layer = Layers[Object.GetInstanceID()];
+            }
+        }
+        Layers = new Dictionary<int, int>();
     }
 
     void OnEnable()
@@ -66,7 +93,8 @@ public class AssetBrush : EditorWindow
         MousePosition2D = CurrentEvent.mousePosition;
         RaycastHit Hit;
         Ray Raycast = HandleUtility.GUIPointToWorldRay(MousePosition2D); // ignore objects already spawned
-        if (Physics.Raycast(Raycast, out Hit))
+        
+        if (Physics.Raycast(Raycast, out Hit, Mathf.Infinity, LayerMask))
         {
             MousePosition3D = Hit.point;
         }
@@ -88,6 +116,13 @@ public class AssetBrush : EditorWindow
         }
     }
 
+    void UpdateBrushSize(float Size) 
+    {
+        PreviousBrushSize = Size;
+        BrushSize = Size;
+        Brush.transform.localScale = new Vector3(Size, Brush.transform.localScale.y, Size);
+    }
+
     void OnGUI()
     {
         GUI.skin.button.wordWrap = true;
@@ -97,30 +132,23 @@ public class AssetBrush : EditorWindow
         ShowSettings = EditorGUILayout.Foldout(ShowSettings, "Settings");
         if (ShowSettings)
         {
-            BrushSize = EditorGUILayout.Slider("Brush Size", BrushSize, 1, 10);
+            BrushSize = EditorGUILayout.Slider(new GUIContent("Brush Size", "TOOLTIP"), BrushSize, 1, 10);
+            EditorGUILayout.Space();
 
             if (State != States.Idle && BrushSize != PreviousBrushSize) 
             {
-                PreviousBrushSize = BrushSize;
-                Vector3 BrushScale = Brush.transform.localScale;
-                Brush.transform.localScale = new Vector3(BrushSize, BrushScale.y, BrushSize);
+                UpdateBrushSize(BrushSize);
             }
 
+            Padding = EditorGUILayout.Slider(new GUIContent("Object Padding", "TOOLTIP"), Padding, 1, 10);
             EditorGUILayout.Space();
 
-            Padding = EditorGUILayout.Slider("Object Padding", Padding, 0f, 1f);
+            MinimumObjectRotation = EditorGUILayout.Slider(new GUIContent("Minimum Object Rotation", "TOOLTIP"), MinimumObjectRotation > MaximumObjectRotation ? MaximumObjectRotation : MinimumObjectRotation, 0, 360);
+            MaximumObjectRotation = EditorGUILayout.Slider(new GUIContent("Maximum Object Rotation", "TOOLTIP"), MaximumObjectRotation < MinimumObjectRotation ? MinimumObjectRotation : MaximumObjectRotation, 0, 360);
             EditorGUILayout.Space();
 
-            //GUILayout.Label("Object Rotation", EditorStyles.boldLabel);
-            MinimumObjectRotation = EditorGUILayout.Slider("Minimum Object Rotation", MinimumObjectRotation > MaximumObjectRotation ? MaximumObjectRotation : MinimumObjectRotation, 0, 360);
-            MaximumObjectRotation = EditorGUILayout.Slider("Maximum Object Rotation", MaximumObjectRotation < MinimumObjectRotation ? MinimumObjectRotation : MaximumObjectRotation, 0, 360);
-            EditorGUILayout.Space();
-
-            //GUILayout.Label("Object Scale", EditorStyles.boldLabel);
-            MinimumObjectSizeScale = EditorGUILayout.FloatField("Minimum Object Scale", MinimumObjectSizeScale);
-            MaximumObjectSizeScale = EditorGUILayout.FloatField("Maximum Object Scale", MaximumObjectSizeScale);
-            // MinimumObjectSizeScale = EditorGUILayout.Slider("Minimum Object Scale", MinimumObjectSizeScale > MaximumObjectSizeScale ? MaximumObjectSizeScale : MinimumObjectSizeScale, -1, 1);
-            // MaximumObjectSizeScale = EditorGUILayout.Slider("Maximum Object Scale", MaximumObjectSizeScale < MinimumObjectSizeScale ? MinimumObjectSizeScale : MaximumObjectSizeScale, -1, 1);
+            MinimumObjectSizeScale = EditorGUILayout.FloatField(new GUIContent("Minimum Object Scale", "TOOLTIP"), MinimumObjectSizeScale);
+            MaximumObjectSizeScale = EditorGUILayout.FloatField(new GUIContent("Maximum Object Scale", "TOOLTIP"), MaximumObjectSizeScale);
             EditorGUILayout.Space();
 
             GUILayout.Label(SelectedParent ? "Parent selected ( " + SelectedParent.name + " )" : "No parent selected", EditorStyles.boldLabel);
@@ -203,14 +231,31 @@ public class AssetBrush : EditorWindow
             if (ObjectList.Count > 0)
             {
                 State = State == States.Painting ? States.Idle : States.Painting;
-                // ASSIGN THE 8TH LAYER TO THE SPAWNED OBJECTS
-                CreateBrush();
+                if (State == States.Painting) 
+                {
+                    CreateBrush();
+                    SetLayers();
+                }
+                else if (State == States.Idle)
+                {
+                    DestroyImmediate(Brush);
+                    ResetLayers();
+                }
             }
         }
         if (GUILayout.Button(State == States.Erasing ? "Disable Erasing" : "Enable Erasing", GUILayout.Height(35)))
         {
             State = State == States.Erasing ? States.Idle : States.Erasing;
-            CreateBrush();
+            if (State == States.Erasing) 
+                {
+                    CreateBrush();
+                    SetLayers();
+                }
+                else if (State == States.Idle)
+                {
+                    DestroyImmediate(Brush);
+                    ResetLayers();
+                }
         }
         EditorGUILayout.EndHorizontal();
 
@@ -220,6 +265,7 @@ public class AssetBrush : EditorWindow
             MaximumObjectRotation = 360;
             MinimumObjectSizeScale = .5f;
             MaximumObjectSizeScale = 1.5f;
+            Padding = 1;
             SelectedParent = null;
             State = States.Idle;
         }
@@ -234,8 +280,6 @@ public class AssetBrush : EditorWindow
         }
     }
 
-    List<GameObject> SpawnedObjects = new List<GameObject>();
-
     void SpawnObject(GameObject Object)
     {
         float Rotation = Random.Range(MinimumObjectRotation, MaximumObjectRotation);
@@ -245,11 +289,11 @@ public class AssetBrush : EditorWindow
         {
             bool Overlapping = false;
             Vector3 ObjectSize = Object.GetComponent<Renderer>().bounds.size;
-            float LongestSide = Mathf.Max(ObjectSize.x, ObjectSize.y, ObjectSize.z);
+            float LongestSide = Mathf.Max(ObjectSize.x  , ObjectSize.z);
             Vector2 RandomPosition = Random.insideUnitCircle;
             Vector3 ObjectPosition = MousePosition3D + new Vector3(RandomPosition.x, 0, RandomPosition.y) * BrushSize;
 
-            foreach (Collider HitCollider in Physics.OverlapSphere(ObjectPosition, LongestSide * (Padding + 1)))
+            foreach (Collider HitCollider in Physics.OverlapSphere(ObjectPosition, Padding)) // * (Padding + 1)
             {
                 for (int i = 0; i < SpawnedObjects.Count; i++)
                 {
@@ -263,7 +307,12 @@ public class AssetBrush : EditorWindow
             if (!Overlapping)
             {
                 GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(new Vector3(0, Rotation, 0)), SelectedParent);
+                Transform ObjectTransform = SpawnedObject.transform;
+                Vector3 Position = ObjectTransform.position;
                 SpawnedObject.transform.localScale = SpawnedObject.transform.localScale * Scale;
+                ObjectTransform.position = new Vector3(Position.x, Position.y + SpawnedObject.GetComponent<Renderer>().bounds.size.y/2, Position.z);
+                Layers.Add(SpawnedObject.GetInstanceID(), SpawnedObject.layer);
+                SpawnedObject.layer = 2;
                 Undo.RegisterCreatedObjectUndo(SpawnedObject, "Paint Object");
                 SpawnedObjects.Add(SpawnedObject);
                 break;
@@ -273,24 +322,16 @@ public class AssetBrush : EditorWindow
 
     void CreateBrush()
     {
-        if (Brush) 
-        {
-            DestroyImmediate(Brush);
-        }
-        else 
+        if (!Brush)
         {
             Brush = Instantiate(BrushAsset);
-            Vector3 BrushScale = Brush.transform.localScale;
-            Brush.transform.localScale = new Vector3(BrushScale.x * BrushSize, BrushScale.y, BrushScale.z * BrushSize);
+            Vector3 BrushScale = Brush.transform.localScale; 
+            Brush.transform.localScale = new Vector3(BrushSize, Brush.transform.localScale.y, BrushSize);
         }
     }
 
-    int Frames = 0;
-
     void Update()
     {
-        Frames++;
-
         if (Brush)
         {
             Brush.transform.position = MousePosition3D + new Vector3(0, .1f, 0);
@@ -300,13 +341,20 @@ public class AssetBrush : EditorWindow
         {
             if (State == States.Painting)
             {
-                if (Frames % 10 == 0)
+                for (int i = 0; i < ObjectList.Count; i++)
                 {
-                    for (int i = 0; i < ObjectList.Count; i++)
+                    SpawnObject(ObjectList[Random.Range(0, ObjectList.Count)]);
+                }
+                Undo.IncrementCurrentGroup();
+            }
+            else if (State == States.Erasing) 
+            {
+                foreach (Collider HitCollider in Physics.OverlapSphere(MousePosition3D, BrushSize)) // * (Padding + 1)
+                {
+                    if (HitCollider.gameObject.layer == 2) 
                     {
-                        SpawnObject(ObjectList[Random.Range(0, ObjectList.Count)]);
+                        Undo.DestroyObjectImmediate(HitCollider.gameObject);
                     }
-                    //ObjectsSpawnedDuringPaintIteration = new List<GameObject>();
                 }
             }
         }
