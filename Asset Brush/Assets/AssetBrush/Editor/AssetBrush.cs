@@ -53,9 +53,6 @@ public class AssetBrush : EditorWindow
     float MinimumSizeScale;
     float MaximumSizeScale;
     Transform SelectedParent;
-    
-    Dictionary <string, float> DefaultSettings = new Dictionary<string, float>();
-    float test = 1;
 
     [MenuItem("Window/Asset Brush")]
     public static void ShowWindow()
@@ -67,9 +64,11 @@ public class AssetBrush : EditorWindow
     {   
         SetUserSettings();
         State = States.Idle;
-        BrushAsset = Resources.Load("Brush") as GameObject;
-        PaintMaterial = Resources.Load("PaintMaterial") as Material;
-        EraseMaterial = Resources.Load("EraseMaterial") as Material;
+
+        BrushAsset = (GameObject)AssetDatabase.LoadAssetAtPath("Assets/AssetBrush/Assets/Brush.prefab", typeof(GameObject));
+        PaintMaterial = (Material)AssetDatabase.LoadAssetAtPath("Assets/AssetBrush/Assets/PaintMaterial.mat", typeof(Material));
+        EraseMaterial = (Material)AssetDatabase.LoadAssetAtPath("Assets/AssetBrush/Assets/EraseMaterial.mat", typeof(Material));
+
         SceneView.duringSceneGui += SceneGUI;
     }
 
