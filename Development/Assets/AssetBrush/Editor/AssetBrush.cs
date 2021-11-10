@@ -380,7 +380,7 @@ public class AssetBrush : EditorWindow
 
             if (!Overlapping)
             {
-                GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(new Vector3(0, Rotation, 0)), SelectedParent);
+                GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(new Vector3(Object.transform.eulerAngles.x, Rotation, Object.transform.eulerAngles.z)), SelectedParent);
                 Transform ObjectTransform = SpawnedObject.transform;
                 Vector3 Position = ObjectTransform.position;
                 SpawnedObject.transform.localScale = SpawnedObject.transform.localScale * Scale;
