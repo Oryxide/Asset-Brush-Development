@@ -35,6 +35,7 @@ public class AssetBrush : EditorWindow
     Material PaintMaterial;
     Material EraseMaterial;
 
+
     // DEFAULT USER SETTINGS
     int DefaultBrushSize = 3; 
     int DefaultMinimumPadding = 1;
@@ -101,7 +102,7 @@ public class AssetBrush : EditorWindow
                 Brush.transform.localScale = new Vector3(BrushSize, Brush.transform.localScale.y, BrushSize);
             }
 
-            MinimumPadding = EditorGUILayout.IntSlider(new GUIContent("Minimum Padding", "Defines the minimum distance between game objects"), MinimumPadding, 0, 10);
+            MinimumPadding = EditorGUILayout.IntSlider(new GUIContent("Minimum Padding", "Defines the minimum distance between game objects"), MinimumPadding, 1, 10);
             
             MaxObjects = EditorGUILayout.IntSlider(new GUIContent("Max Objects", "Defines the maximum amount of game objects allowed in a paint cycle"), MaxObjects, 1, 40);
             EditorGUILayout.Space();
@@ -364,12 +365,8 @@ public class AssetBrush : EditorWindow
         for (int Attempt = 1; Attempt <= 2; Attempt++)
         {
             bool Overlapping = false;
-            //Vector3 ObjectSize = Object.GetComponent<Renderer>().bounds.size;
-            //float LongestSide = Mathf.Max(ObjectSize.x  , ObjectSize.z);
             Vector2 RandomPosition = Random.insideUnitCircle;
             Vector3 ObjectPosition = MousePosition3D + new Vector3(RandomPosition.x, 0, RandomPosition.y) * BrushSize;
-
-            
 
             foreach (Collider HitCollider in Physics.OverlapSphere(ObjectPosition, MinimumPadding, ~0, QueryTriggerInteraction.UseGlobal))
             {
@@ -388,44 +385,51 @@ public class AssetBrush : EditorWindow
                 Transform ObjectTransform = SpawnedObject.transform;
                 Renderer ObjectRenderer = SpawnedObject.GetComponent<Renderer>();
 
-                
-
+                SetLayer(SpawnedObject, 2);
                 ObjectTransform.localScale = SpawnedObject.transform.localScale * Scale;
 
-                if (ObjectRenderer != null)
+                if (Physics.Raycast(ObjectPosition + new Vector3(0, 1, 0), Vector3.down, 1, LayerMask))
                 {
-                    Vector3 Position = ObjectTransform.position;
-                    
-                    ObjectTransform.position = new Vector3(Position.x, Position.y + SpawnedObject.GetComponent<Renderer>().bounds.size.y / 2, Position.z);
+
+                    if (ObjectRenderer != null)
+                    {
+                        Vector3 Position = ObjectTransform.position;
+                        
+                        ObjectTransform.position = new Vector3(Position.x, Position.y + SpawnedObject.GetComponent<Renderer>().bounds.size.y / 2, Position.z);
+                    }
+                    else
+                    {
+                        Bounds bounds = new Bounds();
+
+                        int i = 0;
+                        foreach (Renderer ChildRenderer in SpawnedObject.GetComponentsInChildren<Renderer>())
+                        {
+                            if (i == 0)
+                            {
+                                bounds = ChildRenderer.bounds;
+                            }
+                            else
+                            {
+                                bounds.Encapsulate(ChildRenderer.bounds);
+                            }
+                            i++;
+                        }
+
+                        BoxCollider collider = SpawnedObject.AddComponent(typeof(BoxCollider)) as BoxCollider;
+
+                        collider.isTrigger = true;
+                        collider.center = new Vector3(0, bounds.center.y, 0);
+                        collider.size = bounds.size;
+                    }
+
+                    Undo.RegisterCreatedObjectUndo(SpawnedObject, "Paint Object");
+                    SpawnedObjects.Add(SpawnedObject);
                 }
                 else
                 {
-                    Bounds bounds = new Bounds();
-
-                    int i = 0;
-                    foreach (Renderer ChildRenderer in SpawnedObject.GetComponentsInChildren<Renderer>())
-                    {
-                        if (i == 0)
-                        {
-                            bounds = ChildRenderer.bounds;
-                        }
-                        else
-                        {
-                            bounds.Encapsulate(ChildRenderer.bounds);
-                        }
-                        i++;
-                    }
-
-                    BoxCollider collider = SpawnedObject.AddComponent(typeof(BoxCollider)) as BoxCollider;
-
-                    collider.isTrigger = true;
-                    collider.center = new Vector3(0, bounds.center.y, 0);
-                    collider.size = bounds.size;
+                    DestroyImmediate(SpawnedObject);
                 }
 
-                SetLayer(SpawnedObject, 2);
-                Undo.RegisterCreatedObjectUndo(SpawnedObject, "Paint Object");
-                SpawnedObjects.Add(SpawnedObject);
                 break;
             }
         }
@@ -463,7 +467,6 @@ public class AssetBrush : EditorWindow
     {
         foreach (GameObject Object in SpawnedObjects)
         {
-            Debug.Log("here");
             if (Object && ObjectLayers.ContainsKey(Object.GetInstanceID())) 
             {
                 
