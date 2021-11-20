@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEditor;
 using System.Collections;
 using System.Collections.Generic;
@@ -368,6 +368,8 @@ public class AssetBrush : EditorWindow
             //float LongestSide = Mathf.Max(ObjectSize.x  , ObjectSize.z);
             Vector2 RandomPosition = Random.insideUnitCircle;
             Vector3 ObjectPosition = MousePosition3D + new Vector3(RandomPosition.x, 0, RandomPosition.y) * BrushSize;
+
+            
 
             foreach (Collider HitCollider in Physics.OverlapSphere(ObjectPosition, MinimumPadding, ~0, QueryTriggerInteraction.UseGlobal))
             {
