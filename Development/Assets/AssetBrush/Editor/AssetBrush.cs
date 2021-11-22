@@ -142,18 +142,12 @@ public class AssetBrush : EditorWindow
         {
             EditorGUILayout.HelpBox("Add an asset to the asset group before painting", MessageType.Warning);
         }
-
-        float MaxRowEntries = Mathf.Floor(position.size.x/85);
         
         float ScrollHeight = 0;
 
         if (ObjectList.Count > 0)
         {
-            ScrollHeight = ObjectList.Count <= MaxRowEntries ? 105f : 210f;
-        }
-        else
-        {
-            ScrollHeight = 0f;
+            ScrollHeight = ObjectList.Count <= Mathf.Floor(position.size.x/85) ? 105f : 210f;
         }
 
         AssetGroupScroll = EditorGUILayout.BeginScrollView(AssetGroupScroll, GUILayout.Height(ScrollHeight));
@@ -326,15 +320,6 @@ public class AssetBrush : EditorWindow
         }
     }
 
-    void PaintIteration()
-    {
-        for (int i = 0; i < MaxObjects; i++)
-        {
-            SpawnObject(ObjectList[Random.Range(0, ObjectList.Count)]);
-        }
-        Undo.IncrementCurrentGroup();
-    }
-
     void Paint()
     {
         if (BrushEnabled)
@@ -346,7 +331,11 @@ public class AssetBrush : EditorWindow
                     if ((PreviousPaintPosition - Brush.transform.position).magnitude >= 2) //Brush.GetComponent<Renderer>().bounds.size.x/2
                     {
                         PreviousPaintPosition = Brush.transform.position;
-                        PaintIteration();
+                        for (int i = 0; i < MaxObjects; i++)
+                        {
+                            SpawnObject(ObjectList[Random.Range(0, ObjectList.Count)]);
+                        }
+                        Undo.IncrementCurrentGroup();
                     }
                 }
                 else
@@ -357,68 +346,59 @@ public class AssetBrush : EditorWindow
         }
     }
 
+    bool CanPlaceObject(Vector3 Position)
+    {
+        foreach (Collider HitCollider in Physics.OverlapSphere(Position, MinimumPadding, ~0, QueryTriggerInteraction.UseGlobal))
+        {
+            for (int i = 0; i < SpawnedObjects.Count; i++)
+            {
+                if (HitCollider.gameObject == SpawnedObjects[i])
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     void SpawnObject(GameObject Object)
     {
         float Rotation = Random.Range(MinimumRotation, MaximumRotation);
-        float Scale = Random.Range(MinimumSizeScale, MaximumSizeScale);
+        float Scale = Random.Range(MinimumSizeScale, MaximumSizeScale); 
 
         for (int Attempt = 1; Attempt <= 2; Attempt++)
         {
-            bool Overlapping = false;
             Vector2 RandomPosition = Random.insideUnitCircle;
             Vector3 ObjectPosition = MousePosition3D + new Vector3(RandomPosition.x, 0, RandomPosition.y) * BrushSize;
 
-            foreach (Collider HitCollider in Physics.OverlapSphere(ObjectPosition, MinimumPadding, ~0, QueryTriggerInteraction.UseGlobal))
+            if (CanPlaceObject(ObjectPosition))
             {
-                for (int i = 0; i < SpawnedObjects.Count; i++)
-                {
-                    if (HitCollider.gameObject == SpawnedObjects[i])
-                    {
-                        Overlapping = true;
-                    }
-                }
-            }
-
-            if (!Overlapping)
-            {
-                GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(new Vector3(Object.transform.eulerAngles.x, Rotation, Object.transform.eulerAngles.z)), SelectedParent);
+                GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(Object.transform.eulerAngles.x, Rotation, Object.transform.eulerAngles.z), SelectedParent);
                 Transform ObjectTransform = SpawnedObject.transform;
                 Renderer ObjectRenderer = SpawnedObject.GetComponent<Renderer>();
-
+                
                 SetLayer(SpawnedObject, 2);
-                ObjectTransform.localScale = SpawnedObject.transform.localScale * Scale;
+                ObjectTransform.localScale *= Scale;
 
                 if (Physics.Raycast(ObjectPosition + new Vector3(0, 1, 0), Vector3.down, 1, LayerMask))
                 {
-
-                    if (ObjectRenderer != null)
+                    if (ObjectRenderer)
                     {
-                        Vector3 Position = ObjectTransform.position;
-                        
-                        ObjectTransform.position = new Vector3(Position.x, Position.y + SpawnedObject.GetComponent<Renderer>().bounds.size.y / 2, Position.z);
+                        ObjectTransform.position += new Vector3(0, ObjectRenderer.bounds.extents.y, 0);
                     }
                     else
                     {
-                        Bounds bounds = new Bounds();
-
-                        int i = 0;
-                        foreach (Renderer ChildRenderer in SpawnedObject.GetComponentsInChildren<Renderer>())
+                        Renderer[] Renderers = SpawnedObject.GetComponentsInChildren<Renderer>();
+                        Bounds bounds = Renderers[0].bounds;
+                        foreach (Renderer ChildRenderer in Renderers)
                         {
-                            if (i == 0)
-                            {
-                                bounds = ChildRenderer.bounds;
-                            }
-                            else
-                            {
-                                bounds.Encapsulate(ChildRenderer.bounds);
-                            }
-                            i++;
+                            bounds.Encapsulate(ChildRenderer.bounds);
                         }
 
                         BoxCollider collider = SpawnedObject.AddComponent(typeof(BoxCollider)) as BoxCollider;
 
                         collider.isTrigger = true;
-                        collider.center = new Vector3(0, bounds.center.y, 0);
+                        collider.center = new Vector3(0, bounds.center.y/2, 0);
                         collider.size = bounds.size;
                     }
 
@@ -492,19 +472,9 @@ public class AssetBrush : EditorWindow
         if (!Brush)
         {
             Brush = Instantiate(BrushAsset);
-            Vector3 BrushScale = Brush.transform.localScale; 
             Brush.transform.localScale = new Vector3(BrushSize, Brush.transform.localScale.y, BrushSize);
         }
 
-        MeshRenderer BrushRenderer = Brush.GetComponent<MeshRenderer>();
-
-        if (State == States.Painting)
-        {
-            BrushRenderer.material = PaintMaterial;
-        }
-        else if (State == States.Erasing)
-        {
-            BrushRenderer.material = EraseMaterial;
-        }
+        Brush.GetComponent<MeshRenderer>().material = State == States.Painting ? PaintMaterial : EraseMaterial;
     }
 }
