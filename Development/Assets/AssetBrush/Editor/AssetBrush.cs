@@ -35,7 +35,6 @@ public class AssetBrush : EditorWindow
     Material PaintMaterial;
     Material EraseMaterial;
 
-
     // DEFAULT USER SETTINGS
     int DefaultBrushSize = 3; 
     int DefaultMinimumPadding = 1;
@@ -75,6 +74,7 @@ public class AssetBrush : EditorWindow
 
     void OnDestroy()
     { 
+        // Saves the settings when the user closes the tool
         EditorPrefs.SetInt("BrushSize", BrushSize);
         EditorPrefs.SetInt("MinimumPadding", MinimumPadding);
         EditorPrefs.SetInt("MinimumRotation", MinimumRotation);
@@ -86,17 +86,17 @@ public class AssetBrush : EditorWindow
 
     void OnGUI()
     {
-        GUI.skin.button.wordWrap = true;
+        GUI.skin.button.wordWrap = true; // Allows for words to wrap instead of going into the void
 
         // SETTINGS
-        ToolScroll = EditorGUILayout.BeginScrollView(ToolScroll);
+        ToolScroll = EditorGUILayout.BeginScrollView(ToolScroll); // If the UI can't fit into the size of the window then you'll be able to scroll
         EditorGUILayout.Space();
-        ShowSettings = EditorGUILayout.Foldout(ShowSettings, "Settings");
+        ShowSettings = EditorGUILayout.Foldout(ShowSettings, "Settings"); // Gives the option to minimise the settings
         if (ShowSettings)
         {
             BrushSize = EditorGUILayout.IntSlider(new GUIContent("Brush Size", "Defines the size of the brush"), BrushSize, 1, 10);
 
-            if (State != States.Idle && BrushSize != PreviousBrushSize) 
+            if (State != States.Idle && BrushSize != PreviousBrushSize) // Updates the brush size when the value is changed
             {
                 PreviousBrushSize = BrushSize;
                 Brush.transform.localScale = new Vector3(BrushSize, Brush.transform.localScale.y, BrushSize);
@@ -112,11 +112,15 @@ public class AssetBrush : EditorWindow
             EditorGUILayout.Space();
 
             MinimumSizeScale = EditorGUILayout.FloatField(new GUIContent("Minimum Size Scale", "Defines the minimum scale a game object can be multiplied by"), MinimumSizeScale);
-            if (MinimumSizeScale < .1f)
+            if (MinimumSizeScale < .1f) // Prevents the float field from going below .1
             {
                 MinimumSizeScale = .1f;
             }
             MaximumSizeScale = EditorGUILayout.FloatField(new GUIContent("Maximum Size Scale", "Defines the maximum scale a game object can be multiplied by"), MaximumSizeScale);
+            if (MaximumSizeScale < .1f) // Prevents the float field from going below .1
+            {
+                MaximumSizeScale = .1f;
+            }
             EditorGUILayout.Space();
 
             GUILayout.Label(SelectedParent ? "Parent selected ( " + SelectedParent.name + " )" : "No parent selected", EditorStyles.boldLabel);
@@ -140,14 +144,16 @@ public class AssetBrush : EditorWindow
 
         if (ShowWarning)
         {
+            // Alerts the user if they try to enable painting before adding any prefabs
             EditorGUILayout.HelpBox("Add an asset to the asset group before painting", MessageType.Warning);
         }
         
         float ScrollHeight = 0;
-
+        float MaxIconsPerRow = Mathf.Floor(position.size.x/85);
         if (ObjectList.Count > 0)
         {
-            ScrollHeight = ObjectList.Count <= Mathf.Floor(position.size.x/85) ? 105f : 210f;
+            // Determines the height of the scrollview
+            ScrollHeight = ObjectList.Count <= MaxIconsPerRow ? 105f : 210f;
         }
 
         AssetGroupScroll = EditorGUILayout.BeginScrollView(AssetGroupScroll, GUILayout.Height(ScrollHeight));
@@ -167,19 +173,20 @@ public class AssetBrush : EditorWindow
             }
             EditorGUILayout.EndVertical();
 
-            if (i % Mathf.Floor(position.size.x/85) == 0)
+            if (i % MaxIconsPerRow == 0) // End of row
             {
                 GUILayout.FlexibleSpace();
-                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.EndHorizontal(); // Ends the previous horizontal container
                 if (i != ObjectList.Count)
                 {
-                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.BeginHorizontal(); // Starts a new horizontal container if i is not the final entry in ObjectList
                 }
             }
         }
 
-        if (ObjectList.Count % Mathf.Floor(position.size.x / 85) != 0)
+        if (ObjectList.Count % MaxIconsPerRow != 0)
         {
+            // If ObjectList.Count is not the end of a row then end the previous horizontal container
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
         }
@@ -187,17 +194,18 @@ public class AssetBrush : EditorWindow
         EditorGUILayout.Space();
 
         EditorGUILayout.BeginHorizontal();
-        SearchedPrefab = EditorGUILayout.ObjectField("", SearchedPrefab, typeof(GameObject), false) as GameObject;
+        SearchedPrefab = EditorGUILayout.ObjectField("", SearchedPrefab, typeof(GameObject), false) as GameObject; // Allows the user to search for a non-scene prefab
         if (GUILayout.Button("Add"))
         {
             if (ObjectList.Count == 0)
             {
                 ShowWarning = true;
+                // Sets ShowWarning to true which will display a warning
             }
 
             if (SearchedPrefab)
             {
-                ObjectList.Add(SearchedPrefab);
+                ObjectList.Add(SearchedPrefab); // Adds the searched prefab to ObjectList and resets the  ObjectField
                 ShowWarning = false;
                 SearchedPrefab = null;
             }
@@ -212,6 +220,7 @@ public class AssetBrush : EditorWindow
             if (ObjectList.Count > 0)
             {
                 State = State == States.Painting ? States.Idle : States.Painting;
+                // ^ Assigns State to an Idle if the State is Painting or Painting if the state is Idle
                 if (State == States.Painting) 
                 {
                     CreateBrush();
@@ -226,7 +235,8 @@ public class AssetBrush : EditorWindow
         }
         if (GUILayout.Button(State == States.Erasing ? "Disable Erasing" : "Enable Erasing", GUILayout.Height(35)))
         {
-            State = State == States.Erasing ? States.Idle : States.Erasing;
+            State = State == States.Erasing ? States.Idle : States.Erasing; 
+            // ^ Assigns State to an Idle if the State is Erasing or Erasing if the state is Idle
             if (State == States.Erasing) 
                 {
                     CreateBrush();
@@ -245,15 +255,12 @@ public class AssetBrush : EditorWindow
 
             if (EditorUtility.DisplayDialog("Reset settings?", "Are you sure you want to reset your settings?", "Yes", "No"))
             {
-                EditorPrefs.DeleteAll();
-                SetUserSettings();
+                EditorPrefs.DeleteAll(); // Wipes the saved settings
+                SetUserSettings(); // Saves the default settings
             }
         }
         GUILayout.Label("IMPORTANT: You can only erase GameObjects that you have painted during this session.", EditorStyles.wordWrappedLabel);
         EditorGUILayout.EndScrollView();
-
-
-
     }
 
     void OnSceneGUI(SceneView sceneView)
@@ -265,7 +272,7 @@ public class AssetBrush : EditorWindow
         {
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive)); // Disables selection
 
-            if (CurrentEvent.button == 0)
+            if (CurrentEvent.button == 0) // Mouse input
             {
                 if (CurrentEvent.type == EventType.MouseDown)
                 {
@@ -287,10 +294,12 @@ public class AssetBrush : EditorWindow
         {
             RaycastHit Hit;
             Raycast = EditorCamera.ScreenPointToRay(new Vector2(MousePosition2D.x, (EditorCamera.pixelHeight - 0) - MousePosition2D.y)); 
+            // ^ Returns a ray going from the camera through a point on the screen
             if (Physics.Raycast(Raycast, out Hit, Mathf.Infinity, LayerMask))
             {
-                MousePosition3D = Hit.point;
-                Brush.transform.position = MousePosition3D + new Vector3(0, .1f, 0);
+                MousePosition3D = Hit.point; // Hit.point is the position of the mouse in the world sapce of teh scene
+                Brush.transform.position = MousePosition3D + new Vector3(0, .1f, 0); 
+                // Assigns the position of the brush to the mouse position and raises it by .1 metres to prevent clipping
             }
         }
 
@@ -302,13 +311,13 @@ public class AssetBrush : EditorWindow
             }
             else if (State == States.Erasing) 
             {
-                foreach (Collider HitCollider in Physics.OverlapSphere(MousePosition3D, BrushSize)) // * (Padding + 1)
+                foreach (Collider HitCollider in Physics.OverlapSphere(MousePosition3D, BrushSize))
                 {
-                    if (HitCollider != null && HitCollider.gameObject.layer == 2) 
+                    // ^ Get all colliders at the 3d mouse position within the area of the BrushSize
+                    if (HitCollider != null && HitCollider.gameObject.layer == 2) // Only destroy objects that have a layer of 2 ( the layer of spawned objects )
                     {
-                        Undo.DestroyObjectImmediate(HitCollider.transform.root.gameObject);
-                        // overlapsphere gets all the hitcolliders, even children hit colliders so destroying the root could destroy hitcolliders that will be accessed in future iterations
-                        // so we have to check that HitCollider still exists
+                        Undo.DestroyObjectImmediate(HitCollider.transform.root.gameObject); // Allows for deleted objects to be brought back
+
                     }
                 }
             }
@@ -317,7 +326,7 @@ public class AssetBrush : EditorWindow
 
     void OnSelectionChange()
     {
-        if (SelectedParent == null)
+        if (SelectedParent == null) // If the selected parent is null then the OnGUI function is updated to update the UI
         {
             Repaint();
         }
@@ -329,16 +338,16 @@ public class AssetBrush : EditorWindow
         {
             if (State == States.Painting)
             {
-                if (PreviousPaintPosition != null)
+                if (PreviousPaintPosition != Vector3.zero) // If you don't assign a value to a Vecto3 variable, by default it will be Vector3.zero
                 {
-                    if ((PreviousPaintPosition - Brush.transform.position).magnitude >= 2) //Brush.GetComponent<Renderer>().bounds.size.x/2
+                    if ((PreviousPaintPosition - Brush.transform.position).magnitude >= 2) // Objects are only painted when the brush is moved 2 metres
                     {
                         PreviousPaintPosition = Brush.transform.position;
                         for (int i = 0; i < MaxObjects; i++)
                         {
-                            SpawnObject(ObjectList[Random.Range(0, ObjectList.Count)]);
+                            SpawnObject(ObjectList[Random.Range(0, ObjectList.Count)]); // Passes a random object from the ObjectList to spawn
                         }
-                        Undo.IncrementCurrentGroup();
+                        Undo.IncrementCurrentGroup(); // Allows for all the objects spawned from this function call to be undone at once
                     }
                 }
                 else
@@ -351,7 +360,10 @@ public class AssetBrush : EditorWindow
 
     bool CanPlaceObject(Vector3 Position)
     {
-        foreach (Collider HitCollider in Physics.OverlapSphere(Position, MinimumPadding, ~0, QueryTriggerInteraction.UseGlobal))
+        // Determines whether SpawnObject() can place an object in the specified position
+        // Physics.OverlapShere returns an array of colliders ( mine also includes colliders that act as a trigger )
+        // ~LayerMask means that only colliders in that LayerMask will be included
+        foreach (Collider HitCollider in Physics.OverlapSphere(Position, MinimumPadding, ~LayerMask, QueryTriggerInteraction.UseGlobal))
         {
             for (int i = 0; i < SpawnedObjects.Count; i++)
             {
@@ -376,14 +388,15 @@ public class AssetBrush : EditorWindow
 
             if (CanPlaceObject(ObjectPosition))
             {
-                if (Physics.Raycast(ObjectPosition + new Vector3(0, 1, 0), Vector3.down, 1, LayerMask))
+                if (Physics.Raycast(ObjectPosition + new Vector3(0, 1, 0), Vector3.down, 1, LayerMask)) // If objects are on a surface
                 {
                     GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(Object.transform.eulerAngles.x, Rotation, Object.transform.eulerAngles.z), SelectedParent);
+                    // ^ Creates the obejct with a randomised rotation and parents it to selected ( or scene if null )
                     Transform ObjectTransform = SpawnedObject.transform;
                     Renderer ObjectRenderer = SpawnedObject.GetComponent<Renderer>();
 
                     SetLayer(SpawnedObject, 2);
-                    ObjectTransform.localScale *= Scale;
+                    ObjectTransform.localScale *= Scale; // Increases the scale by the randomised scale
 
                     if (ObjectRenderer)
                     {
@@ -391,6 +404,7 @@ public class AssetBrush : EditorWindow
                     }
                     else
                     {
+                        // Creates a new bound that covers every object under the SpawnedObject
                         Renderer[] Renderers = SpawnedObject.GetComponentsInChildren<Renderer>();
                         Bounds bounds = Renderers[0].bounds;
                         foreach (Renderer ChildRenderer in Renderers)
@@ -399,13 +413,14 @@ public class AssetBrush : EditorWindow
                         }
 
                         BoxCollider collider = SpawnedObject.AddComponent(typeof(BoxCollider)) as BoxCollider;
-
+                        // ^ Creates a collider so that CanPlaceObject() and the Erase feature can detect the object
                         collider.isTrigger = true;
-                        collider.center = new Vector3(0, bounds.center.y / 2, 0);
+                        collider.center = new Vector3(0, bounds.center.y / 2, 0); 
+                        // ^ Increases the position by half the y size so that the object isn't in the gronud
                         collider.size = bounds.size;
                     }
 
-                    Undo.RegisterCreatedObjectUndo(SpawnedObject, "Paint Object");
+                    Undo.RegisterCreatedObjectUndo(SpawnedObject, "Paint Object"); // Allows for painted objects to be undone
                     SpawnedObjects.Add(SpawnedObject);
                     break;
                 }
@@ -415,6 +430,8 @@ public class AssetBrush : EditorWindow
 
     void HorizontalLine()
     {
+        // Creates a line with two spaces below
+        // Helps with readability
         EditorGUILayout.TextArea("", GUI.skin.horizontalSlider);
         EditorGUILayout.Space();
         EditorGUILayout.Space();
@@ -422,6 +439,7 @@ public class AssetBrush : EditorWindow
 
     void SetLayer(GameObject Object, int Layer)
     {
+        // Saves the objects original layer in a dictionary and assigns a new layer
         foreach (Transform ObjectTransform in Object.GetComponentsInChildren<Transform>())
         {
             ObjectLayers[ObjectTransform.gameObject.GetInstanceID()] = ObjectTransform.gameObject.layer;
@@ -432,6 +450,7 @@ public class AssetBrush : EditorWindow
 
     void SetLayers()
     {
+        // Calls SetLayer() for each spawned object to assign the layer to 2 
         foreach (GameObject Object in SpawnedObjects)
         {   
             if (Object) 
@@ -443,6 +462,7 @@ public class AssetBrush : EditorWindow
 
     void ResetLayers()
     {
+        // Assigns the spawned objects original layer back
         foreach (GameObject Object in SpawnedObjects)
         {
             if (Object && ObjectLayers.ContainsKey(Object.GetInstanceID())) 
@@ -456,6 +476,7 @@ public class AssetBrush : EditorWindow
 
     void SetUserSettings()
     {
+        // Saves the settings so that the user can use them in another session
         BrushSize = EditorPrefs.GetInt("BrushSize", DefaultBrushSize);
         MinimumPadding = EditorPrefs.GetInt("MinimumPadding", DefaultMinimumPadding);
         MinimumRotation = EditorPrefs.GetInt("MinimumRotation", DefaultMinimumRotation);
@@ -467,6 +488,8 @@ public class AssetBrush : EditorWindow
 
     void CreateBrush()
     {
+        // Creates the brush that indiciates where objects will spawn and assigns a material
+        // depending on whether the user is painting or erasing
         if (!Brush)
         {
             Brush = Instantiate(BrushAsset);
