@@ -70,7 +70,7 @@ public class AssetBrush : EditorWindow
         PaintMaterial = (Material)AssetDatabase.LoadAssetAtPath("Assets/AssetBrush/Assets/PaintMaterial.mat", typeof(Material));
         EraseMaterial = (Material)AssetDatabase.LoadAssetAtPath("Assets/AssetBrush/Assets/EraseMaterial.mat", typeof(Material));
 
-        SceneView.duringSceneGui += SceneGUI;
+        SceneView.duringSceneGui += OnSceneGUI;
     }
 
     void OnDestroy()
@@ -251,13 +251,16 @@ public class AssetBrush : EditorWindow
         }
         GUILayout.Label("IMPORTANT: You can only erase GameObjects that you have painted during this session.", EditorStyles.wordWrappedLabel);
         EditorGUILayout.EndScrollView();
+
+
+
     }
 
-    void SceneGUI(SceneView sceneView)
+    void OnSceneGUI(SceneView sceneView)
     {
         Event CurrentEvent = Event.current;
         MousePosition2D = CurrentEvent.mousePosition;
-        
+
         if (State != States.Idle)
         {
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive)); // Disables selection
@@ -373,15 +376,15 @@ public class AssetBrush : EditorWindow
 
             if (CanPlaceObject(ObjectPosition))
             {
-                GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(Object.transform.eulerAngles.x, Rotation, Object.transform.eulerAngles.z), SelectedParent);
-                Transform ObjectTransform = SpawnedObject.transform;
-                Renderer ObjectRenderer = SpawnedObject.GetComponent<Renderer>();
-                
-                SetLayer(SpawnedObject, 2);
-                ObjectTransform.localScale *= Scale;
-
                 if (Physics.Raycast(ObjectPosition + new Vector3(0, 1, 0), Vector3.down, 1, LayerMask))
                 {
+                    GameObject SpawnedObject = Instantiate(Object, ObjectPosition, Quaternion.Euler(Object.transform.eulerAngles.x, Rotation, Object.transform.eulerAngles.z), SelectedParent);
+                    Transform ObjectTransform = SpawnedObject.transform;
+                    Renderer ObjectRenderer = SpawnedObject.GetComponent<Renderer>();
+
+                    SetLayer(SpawnedObject, 2);
+                    ObjectTransform.localScale *= Scale;
+
                     if (ObjectRenderer)
                     {
                         ObjectTransform.position += new Vector3(0, ObjectRenderer.bounds.extents.y, 0);
@@ -398,19 +401,14 @@ public class AssetBrush : EditorWindow
                         BoxCollider collider = SpawnedObject.AddComponent(typeof(BoxCollider)) as BoxCollider;
 
                         collider.isTrigger = true;
-                        collider.center = new Vector3(0, bounds.center.y/2, 0);
+                        collider.center = new Vector3(0, bounds.center.y / 2, 0);
                         collider.size = bounds.size;
                     }
 
                     Undo.RegisterCreatedObjectUndo(SpawnedObject, "Paint Object");
                     SpawnedObjects.Add(SpawnedObject);
+                    break;
                 }
-                else
-                {
-                    DestroyImmediate(SpawnedObject);
-                }
-
-                break;
             }
         }
     }
